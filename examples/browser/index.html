@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>zharf in the browser</title>
+    <style>
+      body { font: 16px/1.6 system-ui, sans-serif; display: grid; justify-content: center; padding: 1rem; }
+      main { width: min(40rem, calc(100vw - 2rem)); }
+      textarea, input { width: 100%; box-sizing: border-box; font: inherit; padding: 0.5rem; }
+      #answer { white-space: pre-wrap; padding-top: 1rem; }
+      #cost { color: GrayText; font-size: 0.875rem; }
+    </style>
+    <!-- The page loads the browser build that server.mjs serves from dist/. -->
+    <script type="importmap">
+      { "imports": { "zharf/browser": "/dist/browser.js" } }
+    </script>
+  </head>
+  <body>
+    <main>
+    <h1>zharf in the browser</h1>
+    <p>The key stays on the server: the page talks to <code>/api/zharf</code>, which adds it.</p>
+    <form id="form">
+      <label>Model <input id="model" value="deepseek-v3.2" /></label>
+      <label>Message <textarea id="prompt" rows="3" dir="auto">یک بیت از حافظ بنویس و معنی‌اش را ساده بگو.</textarea></label>
+      <button>Send</button>
+      <button type="button" id="stop">Stop</button>
+    </form>
+    <div id="answer" dir="auto"></div>
+    <div id="cost"></div>
+    </main>
+
+    <script type="module">
+      import { Zharf } from 'zharf/browser'
+
+      // No apiKey here. The host is a route on your own server.
+      const zharf = new Zharf({ host: '/api/zharf' })
+      const $ = (id) => document.getElementById(id)
+
+      $('stop').onclick = () => zharf.abort()
+
+      $('form').onsubmit = async (event) => {
+        event.preventDefault()
+        $('answer').textContent = ''
+        $('cost').textContent = ''
+        try {
+          const stream = await zharf.chat({
+            model: $('model').value,
+            messages: [{ role: 'user', content: $('prompt').value }],
+            stream: true,
+          })
+          for await (const part of stream) {
+            $('answer').textContent += part.message.content
+            if (part.done) $('cost').textContent = `cost: ${part.cost_zharf} ZHARF`
+          }
+        } catch (error) {
+          if (error.name === 'AbortError') return
+          // Platform errors carry a Persian message that can be shown as it is.
+          $('cost').textContent = error.message_fa ?? error.message
+        }
+      }
+    </script>
+  </body>
+</html>

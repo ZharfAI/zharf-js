@@ -1,0 +1,31 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+      - name: Load the built package (ESM and CommonJS)
+        run: |
+          node -e "const z = require('zharf'); if (typeof z.default.chat !== 'function' || typeof z.ResponseError !== 'function') process.exit(1)"
+          node --input-type=module -e "import zharf, { Zharf } from 'zharf'; import b from 'zharf/browser'; if (!(zharf instanceof Zharf) || typeof b.list !== 'function') process.exit(1)"
